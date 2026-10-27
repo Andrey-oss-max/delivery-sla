@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: flake8 sla tests kit t05_orders_sla
+
+  unit-tests:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: pytest -v --junitxml=report-unit.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: report-unit
+          path: report-unit.xml
+
+  # те же тесты на Windows: проект должен работать и на компьютерах колледжа
+  unit-tests-windows:
+    needs: lint
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: pytest -q
+
+  integration-tests:
+    needs: lint
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: Root_ci_2026
+          MYSQL_DATABASE: delivery_sla
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -pRoot_ci_2026 --silent"
+          --health-interval 5s --health-timeout 3s --health-retries 30
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: Root_ci_2026
+      DB_NAME: delivery_sla
+      RUN_DB_TESTS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: pytest -v tests/test_repository_mysql.py --junitxml=report-db.xml
+      - name: Сквозной прогон конвейера
+        run: python -m sla.cli pipeline
+        env:
+          REPORT_NOW: "2026-11-06T18:00"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: report-db
+          path: report-db.xml
+
+  docker-build:
+    needs: [unit-tests, integration-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t delivery-sla .
+      - run: docker run --rm delivery-sla pytest -q
