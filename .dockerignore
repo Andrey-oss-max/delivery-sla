@@ -1,0 +1,10 @@
+.env
+.git
+.github
+.vscode
+__pycache__
+.pytest_cache
+.hypothesis
+.venv
+docs
+dump
