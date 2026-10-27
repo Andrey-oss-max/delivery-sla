@@ -16,7 +16,7 @@
 | Расчёт | срок по тарифу и рабочему календарю, исход SLA, P50/P90, агрегация по дням и зонам | `sla/calendar.py`, `sla/metrics.py` |
 | Хранение | MySQL 8.4: 7 таблиц, отклонённые строки с причиной | `db/init.sql`, `sla/repository.py` |
 | Отчёт | консоль, CSV для учётной системы, дашборд | `sla/cli.py`, `sla/api.py`, `sla/templates/dashboard.html` |
-| Тесты | 93 теста трёх уровней | `tests/` |
+| Тесты | 94 теста трёх уровней | `tests/` |
 
 ```mermaid
 flowchart LR
@@ -88,8 +88,8 @@ docker compose run --rm app python -m sla.cli report --from 2026-10-26 --to 2026
 ## Тесты
 
 ```bash
-docker compose run --rm --build --no-deps app pytest -v     # без базы: 87 passed, 6 skipped
-docker compose --profile test run --rm --build test           # с MySQL: 93 passed
+docker compose run --rm --build --no-deps app pytest -v     # без базы: 88 passed, 6 skipped
+docker compose --profile test run --rm --build test           # с MySQL: 94 passed
 docker compose run --rm --no-deps app flake8 sla tests kit t05_orders_sla
 ```
 
