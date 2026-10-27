@@ -1,6 +1,9 @@
 -- Схема базы delivery_sla (MySQL 8.4). Скрипт идемпотентен: повторный запуск ничего не дублирует.
 -- Применяется автоматически при первом старте контейнера db и командой: python -m sla.cli init
 
+-- клиент в контейнере по умолчанию шлёт текст в latin1: без этой строки кириллица превращается в «кракозябры»
+SET NAMES utf8mb4;
+
 CREATE TABLE IF NOT EXISTS zone (
     id            INT AUTO_INCREMENT PRIMARY KEY,
     code          VARCHAR(8)   NOT NULL UNIQUE,
