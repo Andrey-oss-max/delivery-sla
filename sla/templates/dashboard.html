@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SLA доставки</title>
+<script src="/static/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f3f5f7; --card: #ffffff; --ink: #1d2733; --muted: #66727f; --line: #dfe4ea;
+    --accent: #2f6f8f; --ok: #2e8b57; --bad: #c0392b; --warn: #d68910;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.45 "Segoe UI", system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--ink); }
+  header { background: var(--accent); color: #fff; padding: 14px 24px; display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 20px; font-weight: 600; }
+  header span { opacity: .8; font-size: 13px; }
+  main { max-width: 1200px; margin: 0 auto; padding: 18px 16px 40px; }
+  form { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; background: var(--card); border: 1px solid var(--line);
+         border-radius: 6px; padding: 12px 14px; margin-bottom: 16px; }
+  label { display: flex; flex-direction: column; font-size: 12px; color: var(--muted); gap: 3px; }
+  input, select, button { font: inherit; padding: 6px 9px; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
+  button { background: var(--accent); color: #fff; border-color: var(--accent); cursor: pointer; }
+  button.secondary { background: #fff; color: var(--accent); }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .kpi { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; }
+  .kpi .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+  .kpi .value { font-size: 26px; font-weight: 600; margin-top: 2px; }
+  .kpi .hint { font-size: 12px; color: var(--muted); }
+  .ok { color: var(--ok); } .bad { color: var(--bad); }
+  .grid { display: grid; grid-template-columns: 3fr 2fr; gap: 12px; margin-bottom: 16px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; min-width: 0; }
+  .card h2 { font-size: 15px; margin: 0 0 8px; font-weight: 600; }
+  .chart { position: relative; height: 280px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 500; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .tag { font-size: 11px; padding: 1px 6px; border-radius: 10px; background: #eef2f5; }
+  .tag.open { background: #fdecea; color: var(--bad); }
+  .empty { color: var(--muted); font-style: italic; }
+</style>
+</head>
+<body>
+<header>
+  <h1>SLA доставки</h1>
+  <span>конвейер агрегации заказов · цель {{ target|round(0)|int }}% вовремя</span>
+  <span id="now"></span>
+</header>
+<main>
+  <form id="filters">
+    <label>С даты <input type="date" name="from"></label>
+    <label>По дату <input type="date" name="to"></label>
+    <label>Зона
+      <select name="zone">
+        <option value="">все зоны</option>
+        {% for z in zones %}<option value="{{ z.code }}">{{ z.code }} — {{ z.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <button type="submit">Показать</button>
+    <button type="button" class="secondary" id="recompute">Пересчитать SLA</button>
+  </form>
+
+  <section class="kpis">
+    <div class="kpi"><div class="label">SLA</div><div class="value" id="k-sla">–</div><div class="hint" id="k-sla-hint"></div></div>
+    <div class="kpi"><div class="label">Учтено заказов</div><div class="value" id="k-counted">–</div><div class="hint" id="k-total"></div></div>
+    <div class="kpi"><div class="label">Просрочено</div><div class="value bad" id="k-late">–</div><div class="hint" id="k-open"></div></div>
+    <div class="kpi"><div class="label">P50 / P90</div><div class="value" id="k-p">–</div><div class="hint">время доставки, ч</div></div>
+    <div class="kpi"><div class="label">Средняя просрочка</div><div class="value" id="k-delay">–</div><div class="hint">часов</div></div>
+  </section>
+
+  <section class="grid">
+    <div class="card"><h2>SLA по дням</h2><div class="chart"><canvas id="daily"></canvas></div></div>
+    <div class="card"><h2>SLA по зонам</h2><div class="chart"><canvas id="zones"></canvas></div></div>
+  </section>
+
+  <section class="grid">
+    <div class="card">
+      <h2>Наибольшие просрочки</h2>
+      <table><thead><tr><th>Заказ</th><th>Зона</th><th>Тариф</th><th>Срок</th><th class="num">Просрочка, ч</th><th></th></tr></thead>
+        <tbody id="late"></tbody></table>
+    </div>
+    <div class="card">
+      <h2>Отклонённые строки</h2>
+      <table><thead><tr><th>Строка</th><th>Заказ</th><th>Причина</th></tr></thead><tbody id="rejected"></tbody></table>
+    </div>
+  </section>
+</main>
+<script>
+const TARGET = {{ target }};
+const fmt = (v, d = 1) => v === null || v === undefined ? "–" : Number(v).toFixed(d).replace(".", ",");
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+const TARIFF = {express: "экспресс", standard: "стандарт"};
+let dailyChart, zoneChart;
+
+function query() {
+  const p = new URLSearchParams();
+  for (const [k, v] of new FormData(document.getElementById("filters"))) if (v) p.set(k, v);
+  return p.toString();
+}
+
+async function get(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+  return r.json();
+}
+
+function kpis(s) {
+  const el = document.getElementById("k-sla");
+  el.textContent = s.sla_pct === null ? "–" : fmt(s.sla_pct) + "%";
+  el.className = "value " + (s.sla_pct === null ? "" : s.sla_pct >= TARGET ? "ok" : "bad");
+  document.getElementById("k-sla-hint").textContent = s.sla_pct === null ? "нет данных" :
+    (s.sla_pct >= TARGET ? "в пределах цели" : "ниже цели на " + fmt(TARGET - s.sla_pct) + " п.");
+  document.getElementById("k-counted").textContent = s.counted;
+  document.getElementById("k-total").textContent = `всего ${s.total}, в работе ${s.in_progress}, отменено ${s.excluded}`;
+  document.getElementById("k-late").textContent = s.late + s.open_late;
+  document.getElementById("k-open").textContent = `из них ещё в пути: ${s.open_late}`;
+  document.getElementById("k-p").textContent = `${fmt(s.p50_h)} / ${fmt(s.p90_h)}`;
+  document.getElementById("k-delay").textContent = fmt(s.avg_delay_h);
+  document.getElementById("now").textContent = "расчёт на " + s.now.replace("T", " ").slice(0, 16);
+}
+
+function drawDaily(rows) {
+  const labels = rows.map(r => r.day.slice(8, 10) + "." + r.day.slice(5, 7));
+  dailyChart?.destroy();
+  dailyChart = new Chart(document.getElementById("daily"), {
+    data: { labels, datasets: [
+      { type: "line", label: "SLA, %", data: rows.map(r => r.sla_pct), borderColor: "#2f6f8f", backgroundColor: "#2f6f8f",
+        yAxisID: "y", tension: .25, spanGaps: true },
+      { type: "line", label: "цель", data: rows.map(() => TARGET), borderColor: "#c0392b", borderDash: [6, 4],
+        pointRadius: 0, yAxisID: "y" },
+      { type: "bar", label: "учтено заказов", data: rows.map(r => r.counted), backgroundColor: "#cfdde6", yAxisID: "y2" },
+    ]},
+    options: { maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+      scales: { y: { min: 50, max: 100, title: { display: true, text: "%" } },
+                y2: { position: "right", grid: { drawOnChartArea: false }, title: { display: true, text: "заказов" } } } },
+  });
+}
+
+function drawZones(rows) {
+  zoneChart?.destroy();
+  zoneChart = new Chart(document.getElementById("zones"), {
+    type: "bar",
+    data: { labels: rows.map(r => r.zone + " " + r.name), datasets: [{ label: "SLA, %", data: rows.map(r => r.sla_pct),
+      backgroundColor: rows.map(r => r.sla_pct !== null && r.sla_pct >= TARGET ? "#2e8b57" : "#c0392b") }] },
+    options: { indexAxis: "y", maintainAspectRatio: false, plugins: { legend: { display: false } },
+      scales: { x: { min: 50, max: 100 } } },
+  });
+}
+
+function tables(late, rejected) {
+  document.getElementById("late").innerHTML = late.length ? late.map(r => `<tr><td>${esc(r.order_no)}</td><td>${esc(r.zone)}</td>
+    <td>${TARIFF[r.tariff] || esc(r.tariff)}</td><td>${esc(String(r.deadline).replace("T", " ").slice(0, 16))}</td>
+    <td class="num">${fmt(r.delay_h)}</td><td>${r.outcome === "open_late" ? '<span class="tag open">в пути</span>' : '<span class="tag">доставлен</span>'}</td></tr>`).join("")
+    : '<tr><td colspan="6" class="empty">просрочек нет</td></tr>';
+  document.getElementById("rejected").innerHTML = rejected.length ? rejected.map(r => `<tr><td>${r.line_no}</td>
+    <td>${esc(r.order_no || "–")}</td><td>${esc(r.reason)}</td></tr>`).join("")
+    : '<tr><td colspan="3" class="empty">отклонённых строк нет</td></tr>';
+}
+
+async function load() {
+  const q = query();
+  try {
+    const [s, d, z, l, rj] = await Promise.all([get("/api/summary?" + q), get("/api/daily?" + q), get("/api/by-zone?" + q),
+      get("/api/late?limit=8&" + q), get("/api/rejected?limit=8")]);
+    kpis(s); drawDaily(d); drawZones(z); tables(l, rj);
+  } catch (e) { alert("Ошибка: " + e.message); }
+}
+
+document.getElementById("filters").addEventListener("submit", e => { e.preventDefault(); load(); });
+document.getElementById("recompute").addEventListener("click", async () => {
+  await fetch("/api/recompute", { method: "POST" }); load();
+});
+load();
+</script>
+</body>
+</html>
