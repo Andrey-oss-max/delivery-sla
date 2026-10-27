@@ -1,0 +1,21 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    { "label": "Запустить всё", "type": "shell", "command": "docker compose up --build -d api", "problemMatcher": [] },
+    { "label": "Остановить всё", "type": "shell", "command": "docker compose down", "problemMatcher": [] },
+    { "label": "Конвейер: загрузить реестр и пересчитать", "type": "shell",
+      "command": "docker compose run --rm app python -m sla.cli pipeline", "problemMatcher": [] },
+    { "label": "Отчёт SLA в консоль", "type": "shell",
+      "command": "docker compose run --rm app python -m sla.cli report", "problemMatcher": [] },
+    { "label": "Выгрузить отчёт SLA в CSV", "type": "shell",
+      "command": "docker compose run --rm app python -m sla.cli export exchange/otchet_sla.csv", "problemMatcher": [] },
+    { "label": "Тесты без базы", "type": "shell",
+      "command": "docker compose run --rm --build --no-deps app pytest -v", "group": "test", "problemMatcher": [] },
+    { "label": "Тесты с базой", "type": "shell",
+      "command": "docker compose --profile test run --rm --build test", "group": "test", "problemMatcher": [] },
+    { "label": "Линтер", "type": "shell",
+      "command": "docker compose run --rm --build --no-deps app flake8 sla tests kit t05_orders_sla", "problemMatcher": [] },
+    { "label": "Открыть дашборд", "type": "shell", "command": "open http://localhost:8000 || start http://localhost:8000",
+      "problemMatcher": [] }
+  ]
+}

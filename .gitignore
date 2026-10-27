@@ -1,0 +1,12 @@
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+.hypothesis/
+.venv/
+*.sql.gz
+*.bak
+dump/
+exchange/otchet_sla*.csv
+docs/
+.DS_Store
