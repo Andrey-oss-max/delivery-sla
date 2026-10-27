@@ -59,6 +59,13 @@ def test_late_and_by_zone():
     assert c.get("/api/by-zone").json()[0]["zone"] == "CTR"
 
 
+def test_dashboard_takes_filters_from_url():
+    c, _ = make_client()
+    page = c.get("/?from=2026-11-02&to=2026-11-06&zone=OBL").text
+    assert 'value="2026-11-02"' in page and 'value="2026-11-06"' in page
+    assert '<option value="OBL" selected>' in page and '<option value="CTR">' in page
+
+
 def test_dashboard_page_and_static():
     c, _ = make_client()
     page = c.get("/")

@@ -56,9 +56,11 @@ def create_app(get_repo, settings: Settings) -> FastAPI:
         return {"date_from": date_from, "date_to": date_to, "zone": zone or None}
 
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
-    def dashboard(request: Request, repo=Depends(get_repo)):
+    def dashboard(request: Request, p=Depends(period), repo=Depends(get_repo)):
         zones = sorted(repo.zones().values(), key=lambda z: z.code)
-        return templates.TemplateResponse(request, "dashboard.html", {"zones": zones, "target": settings.sla_target})
+        # фильтры из адресной строки: подборку можно отправить ссылкой
+        return templates.TemplateResponse(request, "dashboard.html", {"zones": zones, "target": settings.sla_target,
+                                                                      "f": p})
 
     @app.get("/api/health")
     def health():
