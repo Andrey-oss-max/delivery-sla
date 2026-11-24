@@ -10,3 +10,7 @@ dump/
 exchange/otchet_sla*.csv
 docs/
 .DS_Store
+# отчёты по практике хранятся только локально
+Отчёт по УП*.docx
+Отчёты по методичкам/
+~$*.docx
