@@ -93,6 +93,18 @@ def create_app(get_repo, settings: Settings) -> FastAPI:
     def rejected(limit: int = Query(20, ge=1, le=200), repo=Depends(get_repo)):
         return repo.rejected(limit)
 
+    @app.get("/api/orders")
+    def orders(repo=Depends(get_repo)):
+        """Все заказы с рассчитанным сроком и исходом SLA - для выгрузки в 1С."""
+        results = {r.order_no: r for r in repo.results()}
+        rows = []
+        for o in repo.orders():
+            r = results.get(o.order_no)
+            rows.append({**{k: (v.isoformat() if isinstance(v, datetime) else v) for k, v in o.__dict__.items()},
+                         "deadline": r.deadline.isoformat() if r else None,
+                         "outcome": r.outcome if r else None})
+        return rows
+
     @app.post("/api/orders", status_code=201)
     def add_order(body: OrderIn, repo=Depends(get_repo)):
         rep = service.ingest([(1, _row_from_body(body))], repo, settings.now(), source="api", kind="api")
