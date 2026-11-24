@@ -71,3 +71,13 @@ def test_dashboard_page_and_static():
     page = c.get("/")
     assert page.status_code == 200 and "SLA доставки" in page.text and "CTR — Центральный район" in page.text
     assert c.get("/static/chart.umd.min.js").status_code == 200
+
+
+def test_orders_list_for_1c():
+    c, _ = make_client()
+    rows = {r["order_no"]: r for r in c.get("/api/orders").json()}
+    assert set(rows) == {"A1", "A2"}
+    a2 = rows["A2"]
+    assert (a2["channel"], a2["zone"], a2["status"]) == ("site", "CTR", "delivered")
+    assert a2["created_at"] == "2026-11-02T10:00:00" and a2["reschedule_to"] is None
+    assert a2["deadline"] == "2026-11-02T13:00:00" and a2["outcome"] == "late"
